@@ -39,7 +39,7 @@
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-[#1a2e1a] px-4">
+<div class="flex h-[100dvh] items-center justify-center bg-[#1a2e1a] px-4">
 	<div class="w-full max-w-sm">
 		<div class="mb-8 text-center">
 			<img src="/LaQuincena-192.png" alt="La Quincena" class="mx-auto mb-4 h-20 w-20" />
