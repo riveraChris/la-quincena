@@ -1,24 +1,31 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
 
 	let { data } = $props();
 
-	onMount(() => {
+	$effect(() => {
 		if (!data.session) {
 			goto('/login');
 		}
 	});
+
+	async function handleLogout() {
+		await data.supabase.auth.signOut();
+		goto('/login', { invalidateAll: true });
+	}
 </script>
 
 {#if data.session}
 	<div class="min-h-screen bg-gray-950 text-white">
 		<header class="bg-[#1a2e1a] px-4 py-4">
 			<div class="mx-auto flex max-w-lg items-center justify-between">
-				<h1 class="text-lg font-bold text-emerald-100">FinanzasFam</h1>
-				<div class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500 text-sm font-bold">
-					{data.session.user.user_metadata?.display_name?.[0] ?? '?'}
-				</div>
+				<h1 class="text-lg font-bold text-emerald-100">La Quincena</h1>
+				<button
+					onclick={handleLogout}
+					class="rounded-lg border border-emerald-700 px-3 py-1.5 text-sm text-emerald-300 transition-colors hover:bg-emerald-900/30"
+				>
+					Salir
+				</button>
 			</div>
 		</header>
 

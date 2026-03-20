@@ -24,7 +24,7 @@
 			return;
 		}
 
-		goto('/');
+		goto('/', { invalidateAll: true });
 	}
 </script>
 
@@ -49,7 +49,7 @@
 					bind:value={email}
 					required
 					class="w-full rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-white placeholder-emerald-600 focus:border-emerald-400 focus:outline-none"
-					placeholder="tu@email.com"
+					placeholder="jdoe@email.com"
 				/>
 			</div>
 
