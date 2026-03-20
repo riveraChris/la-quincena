@@ -20,12 +20,8 @@ export default defineConfig({
 				background_color: '#1a2e1a',
 				icons: [
 					{ src: '/LaQuincena-192.png', sizes: '192x192', type: 'image/png' },
-					{
-						src: '/LaQuincena-512.png',
-						sizes: '512x512',
-						type: 'image/png',
-						purpose: 'any maskable'
-					}
+					{ src: '/LaQuincena-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+					{ src: '/LaQuincena-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
 				]
 			},
 			workbox: {
