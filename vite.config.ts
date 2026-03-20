@@ -16,7 +16,7 @@ export default defineConfig({
 				start_url: '/',
 				display: 'standalone',
 				orientation: 'portrait',
-				theme_color: '#3d7a4e',
+				theme_color: '#1a2e1a',
 				background_color: '#1a2e1a',
 				icons: [
 					{ src: '/LaQuincena-192.png', sizes: '192x192', type: 'image/png' },
