@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 
 	let { data } = $props();
 
@@ -24,7 +24,8 @@
 			return;
 		}
 
-		goto('/', { invalidateAll: true });
+		await invalidate('supabase:auth');
+		goto('/');
 	}
 </script>
 

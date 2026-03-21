@@ -4,9 +4,15 @@
 
 	let { children, data } = $props();
 
+	$effect(() => {
+		if (!data.session) {
+			goto('/login');
+		}
+	});
+
 	async function handleLogout() {
 		await data.supabase.auth.signOut();
-		goto('/login', { invalidateAll: true });
+		goto('/login');
 	}
 
 	const navItems = [
@@ -22,6 +28,7 @@
 	}
 </script>
 
+{#if data.session}
 <div class="flex h-[100dvh] flex-col bg-gray-950 text-white">
 	<header class="bg-[#1a2e1a] px-4 pt-[env(safe-area-inset-top)]">
 		<div class="mx-auto flex max-w-lg items-center justify-between py-3">
@@ -68,3 +75,4 @@
 		</div>
 	</nav>
 </div>
+{/if}
