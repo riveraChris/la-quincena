@@ -29,57 +29,68 @@
 	}
 </script>
 
-<div class="app-screen items-center justify-center bg-auth-bg px-6 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-	<div class="w-full max-w-sm">
+<div class="app-screen bg-surface">
+	<!-- Top safe area with brand color -->
+	<div class="bg-nav pt-[env(safe-area-inset-top)]"></div>
+
+	<!-- Content -->
+	<div class="flex flex-1 flex-col items-center justify-center px-6">
 		<!-- Logo -->
 		<div class="mb-10 text-center">
-			<img src="/LaQuincena-192.png" alt="La Quincena" class="mx-auto mb-4 h-20 w-20 rounded-2xl" />
+			<div class="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-brand">
+				<img src="/LaQuincena-192.png" alt="La Quincena" class="h-20 w-20 rounded-2xl" />
+			</div>
 			<h1 class="text-2xl font-bold text-white">La Quincena</h1>
-			<p class="mt-1 text-xs font-medium tracking-[0.2em] text-text-accent/60 uppercase">Finanzas Familiares</p>
+			<p class="mt-1 text-xs font-medium tracking-[0.2em] text-text-accent/50 uppercase">Finanzas Familiares</p>
 		</div>
 
-		<!-- Form -->
-		<form onsubmit={handleLogin} class="space-y-5">
-			{#if error}
-				<div class="rounded-input bg-expense/10 px-4 py-3 text-sm text-expense">{error}</div>
-			{/if}
+		<!-- Form Card -->
+		<div class="w-full max-w-sm rounded-card bg-surface-raised p-5">
+			<form onsubmit={handleLogin} class="space-y-4">
+				{#if error}
+					<div class="rounded-badge bg-expense/10 px-4 py-3 text-sm text-expense">{error}</div>
+				{/if}
 
-			<div>
-				<label for="email" class="mb-1.5 block text-sm font-medium text-text-accent/80">Email</label>
-				<input
-					id="email"
-					type="email"
-					bind:value={email}
-					required
-					class="w-full rounded-input border border-auth-input-border bg-auth-input-bg px-4 py-3 text-white placeholder-text-muted focus:border-auth-input-focus focus:outline-none"
-					placeholder="jdoe@email.com"
-				/>
-			</div>
+				<div>
+					<label for="email" class="mb-1.5 block text-xs font-medium text-text-secondary uppercase">Email</label>
+					<input
+						id="email"
+						type="email"
+						bind:value={email}
+						required
+						class="w-full rounded-input border border-nav-border bg-surface px-4 py-3 text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+						placeholder="jdoe@email.com"
+					/>
+				</div>
 
-			<div>
-				<label for="password" class="mb-1.5 block text-sm font-medium text-text-accent/80">Contraseña</label>
-				<input
-					id="password"
-					type="password"
-					bind:value={password}
-					required
-					class="w-full rounded-input border border-auth-input-border bg-auth-input-bg px-4 py-3 text-white placeholder-text-muted focus:border-auth-input-focus focus:outline-none"
-					placeholder="••••••••"
-				/>
-			</div>
+				<div>
+					<label for="password" class="mb-1.5 block text-xs font-medium text-text-secondary uppercase">Contraseña</label>
+					<input
+						id="password"
+						type="password"
+						bind:value={password}
+						required
+						class="w-full rounded-input border border-nav-border bg-surface px-4 py-3 text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+						placeholder="••••••••"
+					/>
+				</div>
 
-			<button
-				type="submit"
-				disabled={loading}
-				class="w-full rounded-button bg-brand py-3.5 font-semibold text-white transition-colors active:bg-brand-hover disabled:opacity-50"
-			>
-				{loading ? 'Entrando...' : 'Entrar'}
-			</button>
-		</form>
+				<button
+					type="submit"
+					disabled={loading}
+					class="w-full rounded-button bg-brand py-3.5 font-semibold text-white active:bg-brand-hover disabled:opacity-50"
+				>
+					{loading ? 'Entrando...' : 'Entrar'}
+				</button>
+			</form>
+		</div>
 
-		<p class="mt-8 text-center text-sm text-text-muted">
+		<p class="mt-6 text-sm text-text-muted">
 			¿No tienes cuenta?
-			<button onclick={() => goto('/register')} class="font-medium text-text-accent underline">Regístrate</button>
+			<button onclick={() => goto('/register')} class="font-medium text-text-accent">Regístrate</button>
 		</p>
 	</div>
+
+	<!-- Bottom safe area -->
+	<div class="bg-surface pb-[env(safe-area-inset-bottom)]"></div>
 </div>

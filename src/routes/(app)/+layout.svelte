@@ -16,7 +16,7 @@
 	}
 
 	const displayName = $derived(
-		data.session?.user?.user_metadata?.display_name ?? 'Usuario'
+		data.member?.display_name ?? data.session?.user?.user_metadata?.display_name ?? 'Usuario'
 	);
 	const avatarInitial = $derived(displayName[0]?.toUpperCase() ?? '?');
 

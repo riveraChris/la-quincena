@@ -2,7 +2,7 @@
 	let { data } = $props();
 
 	const displayName = $derived(
-		data.session?.user?.user_metadata?.display_name?.split(' ')[0] ?? 'Usuario'
+		(data.member?.display_name ?? data.session?.user?.user_metadata?.display_name ?? 'Usuario').split(' ')[0]
 	);
 </script>
 

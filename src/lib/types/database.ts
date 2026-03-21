@@ -404,7 +404,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_family_for_user: {
+        Args: { family_name: string; member_display_name: string }
+        Returns: string
+      }
       get_my_family_ids: { Args: never; Returns: string[] }
+      get_or_create_budget: {
+        Args: { p_family_id: string; p_year: number; p_month: number; p_period: number }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
