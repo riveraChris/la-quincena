@@ -76,7 +76,8 @@
 		</form>
 
 		<p class="mt-6 text-center text-sm text-emerald-400/60">
-			¿No tienes cuenta? <a href="/register" class="text-emerald-300 underline">Regístrate</a>
+			¿No tienes cuenta?
+			<button onclick={() => goto('/register')} class="text-emerald-300 underline">Regístrate</button>
 		</p>
 	</div>
 </div>

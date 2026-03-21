@@ -51,7 +51,7 @@
 		{#if success}
 			<div class="rounded-lg bg-emerald-500/20 px-4 py-6 text-center">
 				<p class="text-emerald-200">¡Revisa tu email para confirmar tu cuenta!</p>
-				<a href="/login" class="mt-4 inline-block text-sm text-emerald-300 underline">Ir a login</a>
+				<button onclick={() => goto('/login')} class="mt-4 inline-block text-sm text-emerald-300 underline">Ir a login</button>
 			</div>
 		{:else}
 			<form onsubmit={handleRegister} class="space-y-4">
@@ -106,7 +106,8 @@
 			</form>
 
 			<p class="mt-6 text-center text-sm text-emerald-400/60">
-				¿Ya tienes cuenta? <a href="/login" class="text-emerald-300 underline">Entra aquí</a>
+				¿Ya tienes cuenta?
+				<button onclick={() => goto('/login')} class="text-emerald-300 underline">Entra aquí</button>
 			</p>
 		{/if}
 	</div>
