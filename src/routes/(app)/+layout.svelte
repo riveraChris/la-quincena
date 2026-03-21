@@ -34,7 +34,7 @@
 </script>
 
 {#if data.session}
-	<div class="app-screen bg-surface text-text-primary">
+	<div class="app-screen bg-nav text-text-primary">
 		<!-- Header -->
 		<header class="bg-nav pt-[env(safe-area-inset-top)]">
 			<div class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
@@ -50,7 +50,7 @@
 		</header>
 
 		<!-- Content -->
-		<main class="scroll-area flex-1">
+		<main class="scroll-area flex-1 bg-surface">
 			<div class="mx-auto max-w-lg px-4 py-4">
 				{@render children()}
 			</div>
