@@ -34,7 +34,7 @@
 </script>
 
 {#if data.session}
-	<div class="flex h-[100dvh] flex-col bg-surface text-text-primary">
+	<div class="app-screen bg-surface text-text-primary">
 		<!-- Header -->
 		<header class="bg-nav pt-[env(safe-area-inset-top)]">
 			<div class="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
