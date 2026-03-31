@@ -173,8 +173,20 @@
 		showSavingsForm = false;
 	}
 
+	// Recalc banner state
+	let recalcBanner = $state<{
+		debtId: string;
+		debtName: string;
+		extraPaid: number;
+		newMin: number;
+		oldMin: number;
+	} | null>(null);
+
 	async function togglePaid(expense: typeof expenses[0]) {
 		const newPaid = !expense.is_paid;
+		const paymentAmount = Math.abs(Number(expense.amount));
+
+		// Update expense_item
 		const { error } = await data.supabase
 			.from('expense_items')
 			.update({
@@ -183,13 +195,99 @@
 			})
 			.eq('id', expense.id);
 
-		if (!error) {
-			expenses = expenses.map((ex) =>
-				ex.id === expense.id
-					? { ...ex, is_paid: newPaid, paid_at: newPaid ? new Date().toISOString() : null }
-					: ex
+		if (error) return;
+
+		expenses = expenses.map((ex) =>
+			ex.id === expense.id
+				? { ...ex, is_paid: newPaid, paid_at: newPaid ? new Date().toISOString() : null }
+				: ex
+		);
+
+		// If linked to a debt, update debt balance
+		if (expense.debt_id) {
+			const debt = debts.find((d) => d.id === expense.debt_id);
+			if (!debt || debt.type === 'fixed') return;
+
+			const balanceChange = newPaid ? -paymentAmount : paymentAmount;
+			const newBalance = Math.max(0, Number(debt.current_balance) + balanceChange);
+
+			// Update debt balance
+			await data.supabase
+				.from('debts')
+				.update({
+					current_balance: newBalance,
+					status: newBalance <= 0 ? 'paid_off' : 'active'
+				})
+				.eq('id', debt.id);
+
+			// Record debt payment (or remove if unpaying)
+			if (newPaid && budgetId) {
+				await data.supabase
+					.from('debt_payments')
+					.insert({
+						debt_id: debt.id,
+						budget_id: budgetId,
+						amount: paymentAmount,
+						new_balance: newBalance
+					});
+			}
+
+			// Check for auto-recalc (installment debts only)
+			if (
+				newPaid &&
+				debt.type === 'installment_no_interest' &&
+				debt.is_auto_recalculate &&
+				debt.interest_free_deadline &&
+				newBalance > 0
+			) {
+				const deadline = new Date(debt.interest_free_deadline);
+				const now = new Date();
+				const monthsLeft = Math.max(1,
+					(deadline.getFullYear() - now.getFullYear()) * 12 +
+					(deadline.getMonth() - now.getMonth())
+				);
+				// Each month has 2 quincenas
+				const quincenasLeft = monthsLeft * 2;
+				const newMin = Math.ceil(newBalance / quincenasLeft);
+				const oldMin = Number(debt.our_minimum_payment);
+
+				if (paymentAmount > oldMin && newMin < oldMin) {
+					recalcBanner = {
+						debtId: debt.id,
+						debtName: debt.name,
+						extraPaid: paymentAmount - oldMin,
+						newMin,
+						oldMin
+					};
+				}
+			}
+
+			// Update local debts state
+			data.debts = debts.map((d) =>
+				d.id === debt.id
+					? { ...d, current_balance: newBalance, status: newBalance <= 0 ? 'paid_off' : 'active' }
+					: d
 			);
 		}
+	}
+
+	async function acceptRecalc() {
+		if (!recalcBanner) return;
+		await data.supabase
+			.from('debts')
+			.update({ our_minimum_payment: recalcBanner.newMin })
+			.eq('id', recalcBanner.debtId);
+
+		data.debts = debts.map((d) =>
+			d.id === recalcBanner!.debtId
+				? { ...d, our_minimum_payment: recalcBanner!.newMin }
+				: d
+		);
+		recalcBanner = null;
+	}
+
+	function dismissRecalc() {
+		recalcBanner = null;
 	}
 
 	async function deleteIncome(id: string) {
@@ -337,6 +435,32 @@
 	</button>
 </div>
 
+<!-- RECALC BANNER -->
+{#if recalcBanner}
+	<div class="mb-4 rounded-card border border-debt-warning/30 bg-debt-warning/10 p-3">
+		<p class="text-sm font-medium text-debt-warning">
+			Pagaste ${recalcBanner.extraPaid} extra en {recalcBanner.debtName}.
+		</p>
+		<p class="mt-1 text-xs text-text-secondary">
+			Nuevo mín: ${recalcBanner.newMin}/quinc. (antes: ${recalcBanner.oldMin})
+		</p>
+		<div class="mt-2 flex gap-2">
+			<button
+				onclick={acceptRecalc}
+				class="flex-1 rounded-badge bg-income/20 py-1.5 text-xs font-semibold text-income active:bg-income/30"
+			>
+				Sí, actualizar
+			</button>
+			<button
+				onclick={dismissRecalc}
+				class="flex-1 rounded-badge bg-surface py-1.5 text-xs font-semibold text-text-muted active:bg-surface-overlay"
+			>
+				No
+			</button>
+		</div>
+	</div>
+{/if}
+
 <!-- SOBRANTE -->
 <div class="mb-6 rounded-card bg-[#1a3a2a] p-4 text-center">
 	<p class="text-[0.65rem] font-semibold tracking-wider text-income/70 uppercase">Sobrante Q{period}</p>
@@ -381,19 +505,21 @@
 	</div>
 {/if}
 
-<!-- ===== MODALS ===== -->
+<!-- ===== MODALS (full-screen overlay) ===== -->
 
 <!-- Income Form -->
 {#if showIncomeForm}
-	<button onclick={() => (showIncomeForm = false)} class="fixed inset-0 z-40 bg-black/60" aria-label="Cerrar"></button>
-	<div class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-surface-raised pb-[env(safe-area-inset-bottom)]">
-		<div class="mx-auto max-w-lg px-4 pt-4 pb-4">
-			<div class="mx-auto mb-4 h-1 w-10 rounded-full bg-text-muted/30"></div>
-			<h3 class="mb-4 text-lg font-bold text-white">Agregar ingreso</h3>
-			<form onsubmit={addIncome} class="space-y-3">
+	<div class="fixed inset-0 z-50 flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+		<div class="flex shrink-0 items-center justify-between border-b border-nav-border bg-nav px-4 py-3">
+			<button type="button" onclick={() => (showIncomeForm = false)} class="text-sm font-medium text-text-muted active:text-white">Cancelar</button>
+			<h3 class="text-base font-bold text-white">Agregar ingreso</h3>
+			<div class="w-14"></div>
+		</div>
+		<div class="flex-1 overflow-y-auto">
+			<form id="incomeForm" onsubmit={addIncome} class="mx-auto max-w-lg space-y-4 px-4 py-4">
 				<div>
 					<label for="incomeMember" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Miembro</label>
-					<select id="incomeMember" bind:value={incomeMemberId} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
+					<select id="incomeMember" bind:value={incomeMemberId} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
 						{#each members as m}
 							<option value={m.id}>{m.display_name}</option>
 						{/each}
@@ -401,7 +527,7 @@
 				</div>
 				<div>
 					<label for="incomeType" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Tipo</label>
-					<select id="incomeType" bind:value={incomeType} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
+					<select id="incomeType" bind:value={incomeType} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
 						<option value="salary">Salario</option>
 						<option value="bonus">Bono</option>
 					</select>
@@ -409,37 +535,38 @@
 				{#if incomeType === 'bonus'}
 					<div>
 						<label for="incomeLabel" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Descripción</label>
-						<input id="incomeLabel" type="text" bind:value={incomeLabel} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Bono trimestral" />
+						<input id="incomeLabel" type="text" bind:value={incomeLabel} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Bono trimestral" />
 					</div>
 				{/if}
 				<div>
 					<label for="incomeAmount" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Monto</label>
-					<input id="incomeAmount" type="number" step="0.01" bind:value={incomeAmount} required class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
-				</div>
-				<div class="flex gap-2 pt-2">
-					<button type="button" onclick={() => (showIncomeForm = false)} class="flex-1 rounded-button bg-surface py-3 text-sm font-semibold text-text-secondary active:bg-surface-overlay">Cancelar</button>
-					<button type="submit" disabled={incomeLoading} class="flex-1 rounded-button bg-income py-3 text-sm font-semibold text-white active:opacity-80 disabled:opacity-50">{incomeLoading ? 'Guardando...' : 'Agregar'}</button>
+					<input id="incomeAmount" type="number" step="0.01" bind:value={incomeAmount} required class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
 				</div>
 			</form>
+		</div>
+		<div class="shrink-0 border-t border-nav-border bg-nav px-4 py-3">
+			<button type="submit" form="incomeForm" disabled={incomeLoading} class="mx-auto block w-full max-w-lg rounded-button bg-income py-3 text-sm font-semibold text-white active:opacity-80 disabled:opacity-50">{incomeLoading ? 'Guardando...' : 'Agregar ingreso'}</button>
 		</div>
 	</div>
 {/if}
 
 <!-- Expense Form -->
 {#if showExpenseForm}
-	<button onclick={() => (showExpenseForm = false)} class="fixed inset-0 z-40 bg-black/60" aria-label="Cerrar"></button>
-	<div class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-surface-raised pb-[env(safe-area-inset-bottom)]">
-		<div class="mx-auto max-w-lg px-4 pt-4 pb-4">
-			<div class="mx-auto mb-4 h-1 w-10 rounded-full bg-text-muted/30"></div>
-			<h3 class="mb-4 text-lg font-bold text-white">Agregar gasto</h3>
-			<form onsubmit={addExpense} class="space-y-3">
+	<div class="fixed inset-0 z-50 flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+		<div class="flex shrink-0 items-center justify-between border-b border-nav-border bg-nav px-4 py-3">
+			<button type="button" onclick={() => (showExpenseForm = false)} class="text-sm font-medium text-text-muted active:text-white">Cancelar</button>
+			<h3 class="text-base font-bold text-white">Agregar gasto</h3>
+			<div class="w-14"></div>
+		</div>
+		<div class="flex-1 overflow-y-auto">
+			<form id="expenseForm" onsubmit={addExpense} class="mx-auto max-w-lg space-y-4 px-4 py-4">
 				<div>
 					<label for="expName" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Nombre</label>
-					<input id="expName" type="text" bind:value={expenseName} required class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Luma, Sunrun" />
+					<input id="expName" type="text" bind:value={expenseName} required class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Luma, Sunrun" />
 				</div>
 				<div>
 					<label for="expCategory" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Categoría</label>
-					<select id="expCategory" bind:value={expenseCategory} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
+					<select id="expCategory" bind:value={expenseCategory} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
 						<option value="fixed">Gasto fijo</option>
 						<option value="operational_card">Tarjeta operacional</option>
 						<option value="installment">Pago a deuda</option>
@@ -448,7 +575,7 @@
 				{#if expenseCategory !== 'fixed' && debts.length > 0}
 					<div>
 						<label for="expDebt" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Vincular a deuda</label>
-						<select id="expDebt" bind:value={expenseDebtId} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
+						<select id="expDebt" bind:value={expenseDebtId} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none">
 							<option value={null}>Sin vincular</option>
 							{#each debts as debt}
 								<option value={debt.id}>{debt.name}</option>
@@ -458,38 +585,38 @@
 				{/if}
 				<div>
 					<label for="expAmount" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Monto</label>
-					<input id="expAmount" type="number" step="0.01" bind:value={expenseAmount} required class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
-				</div>
-				<div class="flex gap-2 pt-2">
-					<button type="button" onclick={() => (showExpenseForm = false)} class="flex-1 rounded-button bg-surface py-3 text-sm font-semibold text-text-secondary active:bg-surface-overlay">Cancelar</button>
-					<button type="submit" disabled={expenseLoading} class="flex-1 rounded-button bg-brand py-3 text-sm font-semibold text-white active:bg-brand-hover disabled:opacity-50">{expenseLoading ? 'Guardando...' : 'Agregar'}</button>
+					<input id="expAmount" type="number" step="0.01" bind:value={expenseAmount} required class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
 				</div>
 			</form>
+		</div>
+		<div class="shrink-0 border-t border-nav-border bg-nav px-4 py-3">
+			<button type="submit" form="expenseForm" disabled={expenseLoading} class="mx-auto block w-full max-w-lg rounded-button bg-brand py-3 text-sm font-semibold text-white active:bg-brand-hover disabled:opacity-50">{expenseLoading ? 'Guardando...' : 'Agregar gasto'}</button>
 		</div>
 	</div>
 {/if}
 
 <!-- Savings Form -->
 {#if showSavingsForm}
-	<button onclick={() => (showSavingsForm = false)} class="fixed inset-0 z-40 bg-black/60" aria-label="Cerrar"></button>
-	<div class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-surface-raised pb-[env(safe-area-inset-bottom)]">
-		<div class="mx-auto max-w-lg px-4 pt-4 pb-4">
-			<div class="mx-auto mb-4 h-1 w-10 rounded-full bg-text-muted/30"></div>
-			<h3 class="mb-4 text-lg font-bold text-white">Agregar ahorro</h3>
-			<form onsubmit={addSavings} class="space-y-3">
+	<div class="fixed inset-0 z-50 flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+		<div class="flex shrink-0 items-center justify-between border-b border-nav-border bg-nav px-4 py-3">
+			<button type="button" onclick={() => (showSavingsForm = false)} class="text-sm font-medium text-text-muted active:text-white">Cancelar</button>
+			<h3 class="text-base font-bold text-white">Agregar ahorro</h3>
+			<div class="w-14"></div>
+		</div>
+		<div class="flex-1 overflow-y-auto">
+			<form id="savingsForm" onsubmit={addSavings} class="mx-auto max-w-lg space-y-4 px-4 py-4">
 				<div>
 					<label for="savLabel" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Descripción</label>
-					<input id="savLabel" type="text" bind:value={savingsLabel} class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Ahorro quincenal" />
+					<input id="savLabel" type="text" bind:value={savingsLabel} class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="Ej: Ahorro quincenal" />
 				</div>
 				<div>
 					<label for="savAmount" class="mb-1 block text-xs font-medium text-text-secondary uppercase">Monto</label>
-					<input id="savAmount" type="number" step="0.01" bind:value={savingsAmount} required class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
-				</div>
-				<div class="flex gap-2 pt-2">
-					<button type="button" onclick={() => (showSavingsForm = false)} class="flex-1 rounded-button bg-surface py-3 text-sm font-semibold text-text-secondary active:bg-surface-overlay">Cancelar</button>
-					<button type="submit" disabled={savingsLoading} class="flex-1 rounded-button bg-savings py-3 text-sm font-semibold text-white active:opacity-80 disabled:opacity-50">{savingsLoading ? 'Guardando...' : 'Agregar'}</button>
+					<input id="savAmount" type="number" step="0.01" bind:value={savingsAmount} required class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none" placeholder="0.00" />
 				</div>
 			</form>
+		</div>
+		<div class="shrink-0 border-t border-nav-border bg-nav px-4 py-3">
+			<button type="submit" form="savingsForm" disabled={savingsLoading} class="mx-auto block w-full max-w-lg rounded-button bg-savings py-3 text-sm font-semibold text-white active:opacity-80 disabled:opacity-50">{savingsLoading ? 'Guardando...' : 'Agregar ahorro'}</button>
 		</div>
 	</div>
 {/if}

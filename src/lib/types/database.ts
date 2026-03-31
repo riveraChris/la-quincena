@@ -137,6 +137,8 @@ export type Database = {
           name: string
           notes: string | null
           our_minimum_payment: number
+          q1_amount: number
+          q2_amount: number
           status: string
           type: string
         }
@@ -150,6 +152,8 @@ export type Database = {
           name: string
           notes?: string | null
           our_minimum_payment?: number
+          q1_amount?: number
+          q2_amount?: number
           status?: string
           type: string
         }
@@ -163,6 +167,8 @@ export type Database = {
           name?: string
           notes?: string | null
           our_minimum_payment?: number
+          q1_amount?: number
+          q2_amount?: number
           status?: string
           type?: string
         }
@@ -409,6 +415,10 @@ export type Database = {
         Returns: string
       }
       get_my_family_ids: { Args: never; Returns: string[] }
+      auto_create_quincena_expenses: {
+        Args: { p_budget_id: string; p_family_id: string; p_period: number }
+        Returns: undefined
+      }
       get_or_create_budget: {
         Args: { p_family_id: string; p_year: number; p_month: number; p_period: number }
         Returns: string

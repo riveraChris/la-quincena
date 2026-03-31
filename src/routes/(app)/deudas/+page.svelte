@@ -15,6 +15,8 @@
 	let formType = $state<Debt['type']>('installment_no_interest');
 	let formBalance = $state('');
 	let formMinPayment = $state('');
+	let formQ1Amount = $state('');
+	let formQ2Amount = $state('');
 	let formDeadline = $state('');
 	let formNotes = $state('');
 	let formLoading = $state(false);
@@ -44,6 +46,8 @@
 		formType = activeTab;
 		formBalance = '';
 		formMinPayment = '';
+		formQ1Amount = '';
+		formQ2Amount = '';
 		formDeadline = '';
 		formNotes = '';
 		formError = '';
@@ -56,6 +60,8 @@
 		formType = debt.type as Debt['type'];
 		formBalance = String(debt.current_balance);
 		formMinPayment = String(debt.our_minimum_payment);
+		formQ1Amount = debt.q1_amount ? String(debt.q1_amount) : '';
+		formQ2Amount = debt.q2_amount ? String(debt.q2_amount) : '';
 		formDeadline = debt.interest_free_deadline ?? '';
 		formNotes = debt.notes ?? '';
 		formError = '';
@@ -72,11 +78,16 @@
 		formLoading = true;
 		formError = '';
 
+		const q1 = parseFloat(formQ1Amount) || 0;
+		const q2 = parseFloat(formQ2Amount) || 0;
+
 		const payload = {
 			name: formName,
 			type: formType,
 			current_balance: parseFloat(formBalance) || 0,
 			our_minimum_payment: parseFloat(formMinPayment) || 0,
+			q1_amount: q1,
+			q2_amount: q2,
 			interest_free_deadline: formType === 'installment_no_interest' && formDeadline ? formDeadline : null,
 			notes: formNotes || null
 		};
@@ -251,6 +262,24 @@
 					<p class="text-sm text-text-secondary">Pago quincenal:</p>
 					<p class="text-xl font-bold text-white">{formatCurrency(debt.our_minimum_payment)}</p>
 				{/if}
+
+				<!-- Q1/Q2 schedule -->
+				{#if debt.q1_amount > 0 || debt.q2_amount > 0}
+					<div class="mt-2 flex gap-2">
+						{#if debt.q1_amount > 0}
+							<span class="rounded-badge bg-text-accent/10 px-2 py-0.5 text-[0.6rem] font-medium text-text-accent">
+								Q1: {formatCurrency(debt.q1_amount)}
+							</span>
+						{/if}
+						{#if debt.q2_amount > 0}
+							<span class="rounded-badge bg-text-accent/10 px-2 py-0.5 text-[0.6rem] font-medium text-text-accent">
+								Q2: {formatCurrency(debt.q2_amount)}
+							</span>
+						{/if}
+					</div>
+				{:else}
+					<p class="mt-2 text-[0.6rem] text-debt-warning/70">Sin quincena asignada</p>
+				{/if}
 			</div>
 		</button>
 	{:else}
@@ -274,26 +303,33 @@
 	+ Nueva deuda
 </button>
 
-<!-- Form Modal -->
+<!-- Form Modal (full-screen overlay) -->
 {#if showForm}
-	<!-- Backdrop -->
-	<button
-		onclick={closeForm}
-		class="fixed inset-0 z-40 bg-black/60"
-		aria-label="Cerrar"
-	></button>
-
-	<!-- Sheet -->
-	<div class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl bg-surface-raised pb-[env(safe-area-inset-bottom)]">
-		<div class="mx-auto max-w-lg px-4 pt-4 pb-4">
-			<!-- Handle -->
-			<div class="mx-auto mb-4 h-1 w-10 rounded-full bg-text-muted/30"></div>
-
-			<h3 class="mb-4 text-lg font-bold text-white">
+	<div class="fixed inset-0 z-50 flex flex-col bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+		<!-- Header -->
+		<div class="flex shrink-0 items-center justify-between border-b border-nav-border bg-nav px-4 py-3">
+			<button type="button" onclick={closeForm} class="text-sm font-medium text-text-muted active:text-white">
+				Cancelar
+			</button>
+			<h3 class="text-base font-bold text-white">
 				{editingDebt ? 'Editar deuda' : 'Nueva deuda'}
 			</h3>
+			{#if editingDebt}
+				<button
+					type="button"
+					onclick={() => { handleDelete(editingDebt!); closeForm(); }}
+					class="text-sm font-medium text-expense active:opacity-70"
+				>
+					Eliminar
+				</button>
+			{:else}
+				<div class="w-14"></div>
+			{/if}
+		</div>
 
-			<form onsubmit={handleSubmit} class="space-y-3">
+		<!-- Scrollable form -->
+		<div class="flex-1 overflow-y-auto">
+			<form id="debtForm" onsubmit={handleSubmit} class="mx-auto max-w-lg space-y-4 px-4 py-4">
 				{#if formError}
 					<div class="rounded-badge bg-expense/10 px-3 py-2 text-sm text-expense">{formError}</div>
 				{/if}
@@ -306,7 +342,7 @@
 						type="text"
 						bind:value={formName}
 						required
-						class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+						class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
 						placeholder="Ej: Capitol One, AMEX Delta"
 					/>
 				</div>
@@ -317,7 +353,7 @@
 					<select
 						id="debtType"
 						bind:value={formType}
-						class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none"
+						class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none"
 					>
 						<option value="installment_no_interest">A plazos sin intereses</option>
 						<option value="operational">Tarjeta operacional</option>
@@ -337,7 +373,7 @@
 							step="0.01"
 							bind:value={formBalance}
 							required
-							class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+							class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
 							placeholder="0.00"
 						/>
 					</div>
@@ -354,9 +390,41 @@
 						step="0.01"
 						bind:value={formMinPayment}
 						required
-						class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+						class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
 						placeholder="0.00"
 					/>
+				</div>
+
+				<!-- Quincena split -->
+				<div>
+					<p class="mb-1 text-xs font-medium text-text-secondary uppercase">Distribución por quincena</p>
+					<div class="flex gap-2">
+						<div class="flex-1">
+							<div class="mb-1 text-center text-[0.6rem] text-text-muted">Q1 (días 1-15)</div>
+							<input
+								type="number"
+								step="0.01"
+								bind:value={formQ1Amount}
+								class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-center text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+								placeholder="0.00"
+							/>
+						</div>
+						<div class="flex-1">
+							<div class="mb-1 text-center text-[0.6rem] text-text-muted">Q2 (días 16-fin)</div>
+							<input
+								type="number"
+								step="0.01"
+								bind:value={formQ2Amount}
+								class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-center text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+								placeholder="0.00"
+							/>
+						</div>
+					</div>
+					{#if (parseFloat(formQ1Amount) || 0) + (parseFloat(formQ2Amount) || 0) > 0}
+						<p class="mt-1 text-center text-[0.6rem] text-text-muted">
+							Total mensual: ${((parseFloat(formQ1Amount) || 0) + (parseFloat(formQ2Amount) || 0)).toFixed(0)}
+						</p>
+					{/if}
 				</div>
 
 				<!-- Deadline (only installment) -->
@@ -367,7 +435,7 @@
 							id="debtDeadline"
 							type="date"
 							bind:value={formDeadline}
-							class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none"
+							class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white focus:border-text-accent focus:outline-none"
 						/>
 					</div>
 				{/if}
@@ -379,38 +447,23 @@
 						id="debtNotes"
 						type="text"
 						bind:value={formNotes}
-						class="w-full rounded-input border border-nav-border bg-surface px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
+						class="w-full rounded-input border border-nav-border bg-surface-raised px-3 py-2.5 text-sm text-white placeholder-text-muted focus:border-text-accent focus:outline-none"
 						placeholder="Opcional"
 					/>
 				</div>
-
-				<!-- Actions -->
-				<div class="flex gap-2 pt-2">
-					{#if editingDebt}
-						<button
-							type="button"
-							onclick={() => { handleDelete(editingDebt!); closeForm(); }}
-							class="rounded-button bg-expense/20 px-4 py-3 text-sm font-semibold text-expense active:bg-expense/30"
-						>
-							Eliminar
-						</button>
-					{/if}
-					<button
-						type="button"
-						onclick={closeForm}
-						class="flex-1 rounded-button bg-surface py-3 text-sm font-semibold text-text-secondary active:bg-surface-overlay"
-					>
-						Cancelar
-					</button>
-					<button
-						type="submit"
-						disabled={formLoading}
-						class="flex-1 rounded-button bg-brand py-3 text-sm font-semibold text-white active:bg-brand-hover disabled:opacity-50"
-					>
-						{formLoading ? 'Guardando...' : editingDebt ? 'Guardar' : 'Crear'}
-					</button>
-				</div>
 			</form>
+		</div>
+
+		<!-- Fixed bottom button -->
+		<div class="shrink-0 border-t border-nav-border bg-nav px-4 py-3">
+			<button
+				type="submit"
+				form="debtForm"
+				disabled={formLoading}
+				class="mx-auto block w-full max-w-lg rounded-button bg-brand py-3 text-sm font-semibold text-white active:bg-brand-hover disabled:opacity-50"
+			>
+				{formLoading ? 'Guardando...' : editingDebt ? 'Guardar cambios' : 'Crear deuda'}
+			</button>
 		</div>
 	</div>
 {/if}

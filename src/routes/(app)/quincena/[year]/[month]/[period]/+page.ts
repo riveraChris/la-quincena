@@ -1,7 +1,7 @@
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ params, parent }) => {
-	const { supabase, familyId, member } = await parent();
+	const { supabase, familyId } = await parent();
 
 	const year = parseInt(params.year);
 	const month = parseInt(params.month);
@@ -21,6 +21,24 @@ export const load: PageLoad = async ({ params, parent }) => {
 
 	if (!budgetId) {
 		return { budgetId: null, year, month, period, incomes: [], expenses: [], savings: [], members: [], debts: [] };
+	}
+
+	// Auto-create expense_items only for current or future quincenas
+	const now = new Date();
+	const currentYear = now.getFullYear();
+	const currentMonth = now.getMonth() + 1;
+	const currentPeriod = now.getDate() <= 15 ? 1 : 2;
+	const isCurrentOrFuture =
+		year > currentYear ||
+		(year === currentYear && month > currentMonth) ||
+		(year === currentYear && month === currentMonth && period >= currentPeriod);
+
+	if (isCurrentOrFuture) {
+		await supabase.rpc('auto_create_quincena_expenses', {
+			p_budget_id: budgetId,
+			p_family_id: familyId,
+			p_period: period
+		});
 	}
 
 	// Load all data in parallel
@@ -46,7 +64,7 @@ export const load: PageLoad = async ({ params, parent }) => {
 			.eq('family_id', familyId),
 		supabase
 			.from('debts')
-			.select('id, name, type, our_minimum_payment')
+			.select('id, name, type, our_minimum_payment, current_balance, interest_free_deadline, is_auto_recalculate')
 			.eq('family_id', familyId)
 			.eq('status', 'active')
 	]);
